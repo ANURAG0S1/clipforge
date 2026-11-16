@@ -7,10 +7,13 @@ whose endpoint is reachable from browsers, used only to sign presigned URLs.
 import asyncio
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import boto3
+from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 from app.core.config import Settings, get_settings
 
@@ -20,6 +23,7 @@ if TYPE_CHECKING:
 
 _PRESIGN_TTL_S = 3600
 _DELETE_BATCH = 1000
+_TRANSFER = TransferConfig(multipart_threshold=64 * 1024**2, multipart_chunksize=64 * 1024**2)
 
 
 class StorageError(RuntimeError):
@@ -69,6 +73,41 @@ class Storage:
         except self.internal.exceptions.BucketAlreadyOwnedByYou:
             return False
         return True
+
+    def head_size(self, key: str) -> int | None:
+        """Object size in bytes, or None if the object does not exist."""
+        try:
+            resp = self.internal.head_object(Bucket=self.bucket, Key=key)
+        except ClientError as exc:
+            code = str(exc.response.get("Error", {}).get("Code", ""))
+            if code in {"404", "NoSuchKey", "NotFound"}:
+                return None
+            raise StorageError(f"head_object failed for {key}: {code}") from exc
+        return int(resp["ContentLength"])
+
+    def download_file(self, key: str, dest: Path) -> None:
+        try:
+            self.internal.download_file(self.bucket, key, str(dest), Config=_TRANSFER)
+        except ClientError as exc:
+            raise StorageError(f"download failed for {key}") from exc
+
+    def upload_file(self, src: Path, key: str, content_type: str) -> None:
+        try:
+            self.internal.upload_file(
+                str(src),
+                self.bucket,
+                key,
+                ExtraArgs={"ContentType": content_type},
+                Config=_TRANSFER,
+            )
+        except ClientError as exc:
+            raise StorageError(f"upload failed for {key}") from exc
+
+    def delete_key(self, key: str) -> None:
+        try:
+            self.internal.delete_object(Bucket=self.bucket, Key=key)
+        except ClientError as exc:
+            raise StorageError(f"delete failed for {key}") from exc
 
     def presign_put(self, key: str, content_type: str, ttl_s: int = _PRESIGN_TTL_S) -> str:
         return self.public.generate_presigned_url(

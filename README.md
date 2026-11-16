@@ -5,7 +5,8 @@ Upload a video or paste a URL, and ClipForge transcribes it, finds the most clip
 moments with Claude, reframes them to 9:16 around the active speaker, and burns in
 animated captions.
 
-> **Status:** Phase 1 (skeleton and infra). Auth, ingest and the pipeline land in later phases.
+> **Status:** Phase 2 (auth, upload, ingest). Transcription, highlights and rendering land in
+> later phases.
 
 ## Quick start
 
@@ -91,6 +92,24 @@ characters, or if a value is still a `<placeholder>`. The web app validates
 | `JWT_SECRET`                                    | Session signing key (`openssl rand -hex 32`)            |
 | `CORS_ORIGINS`                                  | Comma-separated origins allowed to call the API         |
 | `NEXT_PUBLIC_API_URL`                           | API base URL as seen from the browser                   |
+
+## Testing
+
+`make check` runs everything. Database tests need PostgreSQL. Start it with
+`docker compose up -d postgres`. Tests only ever use a database whose name ends in `_test`
+(created automatically). Without a database they are skipped locally, and in CI they fail.
+Media tests generate synthetic clips with ffmpeg, so ffmpeg must be on your `PATH`.
+
+## Security notes
+
+- **Ownership:** every project route filters by the session user. Another user's resources
+  return `404`, never `403`.
+- **Uploads:** presigned keys are server-generated under `uploads/{user_id}/`. Project creation
+  rejects keys outside the caller's prefix and HEAD-checks the object's size.
+- **SSRF:** pasted URLs must be http(s) on port 80/443, without credentials, and every resolved
+  address must be public. The media URLs yt-dlp selects are checked again before download.
+  DNS rebinding between check and fetch isn't fully preventable at this layer, so run workers
+  without access to internal services if that matters in your deployment.
 
 ## Notes
 

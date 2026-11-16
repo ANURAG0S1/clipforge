@@ -16,11 +16,16 @@ def create_celery() -> Celery:
     configure_logging(settings.log_level)
     broker = str(settings.redis_url)
 
-    app = Celery("clipforge", broker=broker, backend=broker, include=["app.workers.tasks.system"])
+    app = Celery(
+        "clipforge",
+        broker=broker,
+        backend=broker,
+        include=["app.workers.tasks.system", "app.workers.tasks.ingest"],
+    )
     app.conf.update(
         task_queues=[Queue(name) for name in QUEUES],
         task_default_queue="ingest",
-        task_routes={"system.*": {"queue": "ingest"}},
+        task_routes={"system.*": {"queue": "ingest"}, "pipeline.ingest": {"queue": "ingest"}},
         task_acks_late=True,
         task_reject_on_worker_lost=True,
         worker_prefetch_multiplier=1,
