@@ -1,0 +1,25 @@
+# deps
+node_modules/
+.pnpm-store/
+.venv/
+__pycache__/
+*.py[cod]
+# build
+.next/
+out/
+dist/
+*.tsbuildinfo
+# tooling caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage/
+playwright-report/
+test-results/
+# env
+.env
+.env.*
+!.env.example
+# os
+.DS_Store
