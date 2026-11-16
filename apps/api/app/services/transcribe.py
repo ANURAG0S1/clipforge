@@ -6,11 +6,15 @@ without loading a model.
 
 import logging
 import threading
+import wave
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol
+
+import numpy as np
+from numpy.typing import NDArray
 
 from app.core.config import Settings
 from app.schemas.transcript import TranscriptSegment, TranscriptWord
@@ -183,6 +187,34 @@ def _load_model(name: str, device: Device, compute_type: str, root: str | None) 
     return WhisperModel(name, device=device, compute_type=compute_type, download_root=root)
 
 
+SAMPLE_RATE = 16_000
+
+
+class AudioFormatError(ValueError):
+    """The WAV handed to the transcriber is not 16 kHz mono 16-bit PCM."""
+
+
+def load_wav(path: Path) -> NDArray[np.float32]:
+    """Read the 16 kHz mono s16le WAV from ``ffmpeg.extract_audio`` as float32 in [-1, 1).
+
+    Decoding here instead of letting faster-whisper open the file keeps PyAV out of the
+    transcription path (faster-whisper 1.2 passes an argument that PyAV 17+ no longer accepts).
+    """
+    try:
+        with wave.open(str(path), "rb") as wav:
+            rate, channels, width = wav.getframerate(), wav.getnchannels(), wav.getsampwidth()
+            if (rate, channels, width) != (SAMPLE_RATE, 1, 2):
+                raise AudioFormatError(
+                    f"expected {SAMPLE_RATE} Hz mono 16-bit PCM, got {rate} Hz, "
+                    f"{channels} channel(s), {width * 8}-bit"
+                )
+            frames = wav.readframes(wav.getnframes())
+    except wave.Error as exc:
+        raise AudioFormatError(f"not a PCM WAV file: {exc}") from exc
+    samples = np.frombuffer(frames, dtype="<i2")
+    return samples.astype(np.float32) / 32768.0
+
+
 class WhisperTranscriber:
     """faster-whisper wrapper. Models are cached per process, so loading happens once per worker."""
 
@@ -203,7 +235,7 @@ class WhisperTranscriber:
         self, wav: Path, *, offset_s: float, on_progress: ProgressCallback
     ) -> ChunkResult:
         segments_iter, info = self._model.transcribe(
-            str(wav),
+            load_wav(wav),
             beam_size=self._beam_size,
             word_timestamps=True,
             vad_filter=True,

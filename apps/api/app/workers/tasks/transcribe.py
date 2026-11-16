@@ -19,6 +19,7 @@ from app.services import ffmpeg
 from app.services.keys import proxy_key
 from app.services.storage import Storage, get_storage
 from app.services.transcribe import (
+    AudioFormatError,
     ChunkResult,
     ModelUnavailableError,
     NoSpeechError,
@@ -51,7 +52,7 @@ def human_error(exc: BaseException) -> str:
             f"The speech model ({exc.model}) could not be loaded. Check that the transcription "
             "worker can reach huggingface.co or has the model in WHISPER_MODEL_DIR."
         )
-    if isinstance(exc, ffmpeg.FFmpegError | ffmpeg.MediaProbeError):
+    if isinstance(exc, ffmpeg.FFmpegError | ffmpeg.MediaProbeError | AudioFormatError):
         return "The audio could not be extracted from this video."
     if isinstance(exc, TRANSIENT_ERRORS):
         return "A temporary error interrupted transcription. Please try again."

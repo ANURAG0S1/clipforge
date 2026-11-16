@@ -2,6 +2,9 @@
 from collections.abc import Iterable, Iterator
 from typing import Any, NamedTuple
 
+import numpy as np
+from numpy.typing import NDArray
+
 class Word(NamedTuple):
     start: float
     end: float
@@ -44,7 +47,7 @@ class WhisperModel:
     ) -> None: ...
     def transcribe(
         self,
-        audio: str,
+        audio: str | NDArray[np.float32],
         language: str | None = ...,
         task: str = ...,
         beam_size: int = ...,

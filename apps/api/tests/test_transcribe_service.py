@@ -1,19 +1,29 @@
 import itertools
+import wave
+from pathlib import Path
 
+import numpy as np
 import pytest
 
 from app.core.config import get_settings
 from app.schemas.transcript import TranscriptWord
+from app.services import ffmpeg
 from app.services.transcribe import (
+    SAMPLE_RATE,
+    AudioFormatError,
     Chunk,
     ChunkResult,
     RawSegment,
+    load_wav,
     make_word,
     merge_chunks,
     model_for,
     plan_chunks,
     resolve_device,
 )
+from tests.support.media import requires_ffmpeg
+
+FIXTURE = Path(__file__).parent / "fixtures" / "speech-sample.mp4"
 
 
 def _seg(start: float, end: float, *words: str) -> RawSegment:
@@ -94,3 +104,46 @@ def test_device_and_model_selection() -> None:
     assert resolve_device("auto") in ("cpu", "cuda")
     assert model_for(settings, "cuda") == ("large-v3", "float16")
     assert model_for(settings, "cpu") == ("small", "int8")
+
+
+def _write_wav(
+    path: Path, samples: list[int], *, rate: int = SAMPLE_RATE, channels: int = 1
+) -> None:
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(channels)
+        wav.setsampwidth(2)
+        wav.setframerate(rate)
+        wav.writeframes(np.array(samples, dtype="<i2").tobytes())
+
+
+def test_load_wav_scales_pcm_to_float(tmp_path: Path) -> None:
+    path = tmp_path / "a.wav"
+    _write_wav(path, [0, 16384, -32768, 32767])
+    audio = load_wav(path)
+    assert audio.dtype == np.float32
+    assert audio.tolist() == pytest.approx([0.0, 0.5, -1.0, 32767 / 32768])
+
+
+@pytest.mark.parametrize(("rate", "channels"), [(44_100, 1), (SAMPLE_RATE, 2)])
+def test_load_wav_rejects_wrong_format(tmp_path: Path, rate: int, channels: int) -> None:
+    path = tmp_path / "bad.wav"
+    _write_wav(path, [0, 0, 0, 0], rate=rate, channels=channels)
+    with pytest.raises(AudioFormatError, match="expected 16000 Hz mono"):
+        load_wav(path)
+
+
+def test_load_wav_rejects_non_wav(tmp_path: Path) -> None:
+    path = tmp_path / "junk.wav"
+    path.write_bytes(b"not a wav file at all")
+    with pytest.raises(AudioFormatError, match="not a PCM WAV"):
+        load_wav(path)
+
+
+@requires_ffmpeg
+def test_extract_audio_output_loads_for_whisper(tmp_path: Path) -> None:
+    """The ffmpeg extraction and the loader agree on format, end to end, on the real fixture."""
+    wav = tmp_path / "speech.wav"
+    ffmpeg.extract_audio(FIXTURE, wav, timeout_s=30)
+    audio = load_wav(wav)
+    assert 7.0 < len(audio) / SAMPLE_RATE < 8.0
+    assert float(np.abs(audio).max()) > 0.05
