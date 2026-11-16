@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Scissors } from "lucide-react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import { AuthForm, type AuthMode } from "@/components/auth/auth-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,11 +28,16 @@ const COPY: Record<
   },
 };
 
-export function AuthPanel({ mode }: { mode: AuthMode }) {
+export interface AuthPanelProps {
+  mode: AuthMode;
+  /** Raw ?next= value from the URL; sanitised here. */
+  nextParam?: string | undefined;
+}
+
+export function AuthPanel({ mode, nextParam }: AuthPanelProps) {
   const router = useRouter();
-  const params = useSearchParams();
   const queryClient = useQueryClient();
-  const next = safeNextPath(params.get("next"));
+  const next = safeNextPath(nextParam);
   const copy = COPY[mode];
   const switchHref = next === "/" ? copy.href : `${copy.href}?next=${encodeURIComponent(next)}`;
 
