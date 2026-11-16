@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
 
-import { LoginPanel } from "./login-panel";
+import { AuthPanel } from "@/components/auth/auth-panel";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-export default function LoginPage() {
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function LoginPage({ searchParams }: PageProps) {
+  const next = (await searchParams).next;
   return (
     <main className="flex min-h-dvh items-center justify-center px-4 py-12">
-      <LoginPanel />
+      <AuthPanel mode="login" nextParam={typeof next === "string" ? next : undefined} />
     </main>
   );
 }

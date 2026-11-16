@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health
+from app.api.routes import auth, health, projects, uploads
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.db.session import get_engine
@@ -36,4 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["Content-Type"],
     )
     app.include_router(health.router)
+    app.include_router(auth.router)
+    app.include_router(uploads.router)
+    app.include_router(projects.router)
     return app

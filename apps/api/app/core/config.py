@@ -47,6 +47,14 @@ class Settings(BaseSettings):
 
     jwt_secret: SecretStr
     jwt_ttl_hours: int = Field(default=24 * 7, gt=0)
+    # Set true behind HTTPS. Defaults false so http://localhost works out of the box.
+    auth_cookie_secure: bool = False
+
+    project_create_limit: int = Field(default=20, gt=0)
+    project_create_window_s: int = Field(default=3600, gt=0)
+    ingest_download_timeout_s: int = Field(default=3600, gt=0)
+    ffmpeg_timeout_s: int = Field(default=4 * 3600, gt=0)
+    temp_dir: str | None = None
 
     cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:3000"]
@@ -84,6 +92,10 @@ class Settings(BaseSettings):
     @property
     def max_upload_bytes(self) -> int:
         return int(self.max_upload_gb * 1024**3)
+
+    @property
+    def max_duration_s(self) -> float:
+        return float(self.max_duration_min * 60)
 
 
 @lru_cache(maxsize=1)

@@ -11,21 +11,36 @@ import { credentialsSchema, type Credentials } from "@/lib/auth";
 
 type FieldErrors = Partial<Record<keyof Credentials, string>>;
 
-export interface LoginFormProps {
+export type AuthMode = "login" | "register";
+
+export interface AuthFormProps {
+  mode?: AuthMode;
   onSubmit: (credentials: Credentials) => Promise<void>;
   onSuccess?: () => void;
 }
 
-function describeError(error: unknown): string {
+const COPY: Record<AuthMode, { idle: string; pending: string; passwordAutocomplete: string }> = {
+  login: { idle: "Sign in", pending: "Signing in…", passwordAutocomplete: "current-password" },
+  register: {
+    idle: "Create account",
+    pending: "Creating account…",
+    passwordAutocomplete: "new-password",
+  },
+};
+
+function describeError(error: unknown, mode: AuthMode): string {
   if (error instanceof ApiError) {
-    if (error.status === 401) return "Incorrect email or password.";
-    if (error.status === 429) return "Too many attempts. Wait a minute and try again.";
+    if (error.status === 401 && mode === "login") return "Incorrect email or password.";
+    if (error.status === 409) return "An account with this email already exists. Sign in instead.";
+    if (error.status === 422) return error.detail;
+    if (error.status === 429) return "Too many attempts. Wait a few minutes and try again.";
     if (error.status === 0) return error.detail;
   }
   return "Something went wrong. Please try again.";
 }
 
-export function LoginForm({ onSubmit, onSuccess }: LoginFormProps) {
+export function AuthForm({ mode = "login", onSubmit, onSuccess }: AuthFormProps) {
+  const copy = COPY[mode];
   const id = useId();
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -58,7 +73,7 @@ export function LoginForm({ onSubmit, onSuccess }: LoginFormProps) {
       await onSubmit(parsed.data);
       onSuccess?.();
     } catch (error: unknown) {
-      setFormError(describeError(error));
+      setFormError(describeError(error, mode));
     } finally {
       setPending(false);
     }
@@ -106,7 +121,7 @@ export function LoginForm({ onSubmit, onSuccess }: LoginFormProps) {
           id={`${id}-password`}
           name="password"
           type="password"
-          autoComplete="current-password"
+          autoComplete={copy.passwordAutocomplete}
           required
           aria-invalid={fieldErrors.password !== undefined}
           aria-describedby={fieldErrors.password !== undefined ? passwordErrorId : undefined}
@@ -119,7 +134,7 @@ export function LoginForm({ onSubmit, onSuccess }: LoginFormProps) {
       </div>
       <Button type="submit" disabled={pending} className="w-full">
         {pending && <Loader2 className="animate-spin" aria-hidden="true" />}
-        {pending ? "Signing in…" : "Sign in"}
+        {pending ? copy.pending : copy.idle}
       </Button>
     </form>
   );

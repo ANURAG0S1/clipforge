@@ -12,16 +12,27 @@ export class ApiError extends Error {
   }
 }
 
-const detailSchemaKeys = ["detail", "message"] as const;
-
-function extractDetail(body: unknown, fallback: string): string {
-  if (typeof body === "object" && body !== null) {
-    for (const key of detailSchemaKeys) {
-      const value: unknown = (body as Record<string, unknown>)[key];
-      if (typeof value === "string" && value.length > 0) return value;
+function firstValidationMessage(detail: unknown[]): string | null {
+  for (const item of detail) {
+    if (typeof item === "object" && item !== null && "msg" in item) {
+      const msg: unknown = item.msg;
+      if (typeof msg === "string" && msg.length > 0) return msg.replace(/^Value error, /, "");
     }
   }
+  return null;
+}
+
+/** FastAPI errors are `{detail: string}` or, for validation, `{detail: [{msg, loc}]}`. */
+export function extractDetail(body: unknown, fallback: string): string {
+  if (typeof body !== "object" || body === null || !("detail" in body)) return fallback;
+  const detail: unknown = body.detail;
+  if (typeof detail === "string" && detail.length > 0) return detail;
+  if (Array.isArray(detail)) return firstValidationMessage(detail) ?? fallback;
   return fallback;
+}
+
+export function isUnauthorized(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
 }
 
 export interface RequestOptions {
