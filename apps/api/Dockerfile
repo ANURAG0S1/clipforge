@@ -17,7 +17,10 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-install-project
 
 FROM base AS runtime
-RUN groupadd --system app && useradd --system --gid app --home /app app
+RUN groupadd --system app && useradd --system --gid app --home /app app \
+ && mkdir -p /models && chown app:app /models
+# Whisper models are downloaded on first use into this (volume-mounted) directory.
+ENV HF_HOME=/models
 COPY --from=deps /opt/venv /opt/venv
 COPY --chown=app:app alembic.ini ./
 COPY --chown=app:app alembic ./alembic

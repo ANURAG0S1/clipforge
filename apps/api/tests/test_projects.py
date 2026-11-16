@@ -217,3 +217,50 @@ async def test_enqueue_failure_marks_project_failed(
     projects = (await alice.get("/projects")).json()
     assert projects[0]["status"] == ProjectStatus.FAILED.value
     assert projects[0]["error"]
+
+
+async def test_transcript_and_media_endpoints(
+    alice: AsyncClient,
+    bob: AsyncClient,
+    storage: FakeStorage,
+    enqueued: list[tuple[uuid.UUID, uuid.UUID]],
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    from app.db.models import Transcript
+
+    project = await _create(alice, await _upload(alice, storage))
+    pid = uuid.UUID(str(project["id"]))
+    assert (await alice.get(f"/projects/{pid}/transcript")).status_code == 404
+    assert (await alice.get(f"/projects/{pid}/media")).status_code == 404
+
+    async with sessions() as db:
+        row = await db.get(Project, pid)
+        assert row is not None
+        row.duration_s = 7.5
+        row.status = ProjectStatus.READY
+        db.add(
+            Transcript(
+                project_id=pid,
+                language="en",
+                words=[{"w": " hi", "start": 0.5, "end": 0.9, "conf": 0.9}],
+                segments=[
+                    {"start": 0.5, "end": 0.9, "text": "hi", "first_word": 0, "word_count": 1}
+                ],
+            )
+        )
+        await db.commit()
+
+    t = await alice.get(f"/projects/{pid}/transcript")
+    assert t.status_code == 200
+    assert t.json() == {
+        "language": "en",
+        "duration_s": 7.5,
+        "words": [{"w": " hi", "start": 0.5, "end": 0.9, "conf": 0.9}],
+        "segments": [{"start": 0.5, "end": 0.9, "text": "hi", "first_word": 0, "word_count": 1}],
+    }
+    m = await alice.get(f"/projects/{pid}/media")
+    assert m.status_code == 200
+    assert m.json()["proxy_url"] == f"http://storage.test/projects/{pid}/proxy.mp4?signed=get"
+
+    assert (await bob.get(f"/projects/{pid}/transcript")).status_code == 404
+    assert (await bob.get(f"/projects/{pid}/media")).status_code == 404

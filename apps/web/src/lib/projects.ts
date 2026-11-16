@@ -1,8 +1,10 @@
 import type {
   PresignResponse,
   ProjectCreate,
+  ProjectMediaOut,
   ProjectOut,
   ProjectStatus,
+  TranscriptOut,
 } from "@clipforge/shared-types";
 
 import { apiFetch } from "@/lib/api";
@@ -10,6 +12,8 @@ import { apiFetch } from "@/lib/api";
 export const projectKeys = {
   all: ["projects"] as const,
   detail: (id: string) => ["projects", id] as const,
+  transcript: (id: string) => ["projects", id, "transcript"] as const,
+  media: (id: string) => ["projects", id, "media"] as const,
 };
 
 export const TERMINAL_STATUSES: ReadonlySet<ProjectStatus> = new Set(["ready", "failed"]);
@@ -20,6 +24,27 @@ export function isProcessing(project: ProjectOut): boolean {
 
 export async function listProjects(signal?: AbortSignal): Promise<ProjectOut[]> {
   return apiFetch<ProjectOut[]>("/projects", signal === undefined ? {} : { signal });
+}
+
+export async function getProject(id: string, signal?: AbortSignal): Promise<ProjectOut> {
+  return apiFetch<ProjectOut>(
+    `/projects/${encodeURIComponent(id)}`,
+    signal === undefined ? {} : { signal },
+  );
+}
+
+export async function getTranscript(id: string, signal?: AbortSignal): Promise<TranscriptOut> {
+  return apiFetch<TranscriptOut>(
+    `/projects/${encodeURIComponent(id)}/transcript`,
+    signal === undefined ? {} : { signal },
+  );
+}
+
+export async function getProjectMedia(id: string, signal?: AbortSignal): Promise<ProjectMediaOut> {
+  return apiFetch<ProjectMediaOut>(
+    `/projects/${encodeURIComponent(id)}/media`,
+    signal === undefined ? {} : { signal },
+  );
 }
 
 export async function createProject(body: ProjectCreate): Promise<ProjectOut> {

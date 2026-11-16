@@ -13,13 +13,14 @@ from sqlalchemy.exc import DBAPIError, OperationalError
 
 from app.core.config import Settings, get_settings
 from app.core.logging import log_context
-from app.db.models import Job, JobStatus, Project, ProjectStatus, SourceType
+from app.db.models import Job, JobStatus, JobType, Project, ProjectStatus, SourceType
 from app.services import ffmpeg
 from app.services.downloader import (
     DownloadRejectedError,
     TransientDownloadError,
     download_url,
 )
+from app.services.keys import proxy_key, source_key
 from app.services.storage import Storage, StorageError, get_storage
 from app.workers.celery_app import celery_app
 from app.workers.db import task_sessionmaker
@@ -40,14 +41,6 @@ TRANSIENT_ERRORS: tuple[type[Exception], ...] = (
 
 class IngestRejectedError(ValueError):
     """The media is valid but violates a configured limit."""
-
-
-def proxy_key(project_id: uuid.UUID) -> str:
-    return f"projects/{project_id}/proxy.mp4"
-
-
-def source_key(project_id: uuid.UUID, suffix: str) -> str:
-    return f"projects/{project_id}/source{suffix or '.mp4'}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,11 +138,13 @@ async def ingest_project(project_id: uuid.UUID, job_id: uuid.UUID, attempt: int)
         if project is None or job is None:
             logger.info("project or job no longer exists; skipping ingest")
             return None
+        tracker = JobTracker(sessions, project_id, job_id)
         if job.status in (JobStatus.SUCCEEDED, JobStatus.FAILED):
             logger.info("ingest job already finished; skipping", extra={"status": job.status})
+            if job.status == JobStatus.SUCCEEDED:
+                await tracker.redispatch_queued(JobType.TRANSCRIBE)
             return None
 
-        tracker = JobTracker(sessions, project_id, job_id)
         await tracker.start(ProjectStatus.INGESTING)
         try:
             result = await _run_ingest(tracker, project, get_storage(), settings)
@@ -167,14 +162,17 @@ async def ingest_project(project_id: uuid.UUID, job_id: uuid.UUID, attempt: int)
             return None
 
         probe = result.probe
-        await tracker.succeed(
+        next_job_id = await tracker.succeed(
             ProjectStatus.TRANSCRIBING,
+            next_job=JobType.TRANSCRIBE,
             source_key=result.source_key,
             duration_s=probe.duration_s,
             width=probe.width,
             height=probe.height,
             fps=probe.fps,
         )
+        if next_job_id is not None:
+            await tracker.dispatch(JobType.TRANSCRIBE, next_job_id)
         logger.info(
             "ingest complete",
             extra={"duration_s": probe.duration_s, "width": probe.width, "height": probe.height},

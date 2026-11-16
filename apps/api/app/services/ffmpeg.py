@@ -289,3 +289,22 @@ def make_proxy(
     run_ffmpeg(
         proxy_args(src, dst), timeout_s=timeout_s, duration_s=duration_s, on_progress=on_progress
     )
+
+
+def extract_audio(
+    src: Path,
+    dst: Path,
+    *,
+    start_s: float = 0.0,
+    duration_s: float | None = None,
+    timeout_s: float,
+) -> None:
+    """16 kHz mono PCM WAV (what Whisper expects), optionally a [start, start+duration) window."""
+    args: list[str] = []
+    if start_s > 0:
+        args += ["-ss", f"{start_s:.3f}"]
+    if duration_s is not None:
+        args += ["-t", f"{duration_s:.3f}"]
+    args += ["-i", str(src), "-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000"]
+    args += ["-c:a", "pcm_s16le", str(dst)]
+    run_ffmpeg(args, timeout_s=timeout_s)

@@ -18,6 +18,7 @@ dependencies = [
   "pyjwt>=2.10",
   "yt-dlp>=2025.1.1",
   "email-validator>=2.2",
+  "faster-whisper>=1.1",
 ]
 
 [dependency-groups]
@@ -39,7 +40,7 @@ package = false
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["alembic/versions"]
+extend-exclude = ["alembic/versions", "stubs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "ASYNC", "S", "PT", "RET", "TID"]
@@ -56,6 +57,7 @@ known-third-party = ["alembic"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
+mypy_path = "stubs"
 files = ["app", "tests", "alembic", "scripts"]
 exclude = ["alembic/versions/"]
 

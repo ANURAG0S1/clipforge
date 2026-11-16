@@ -98,25 +98,53 @@ services:
       - app.workers.celery_app:celery_app
       - worker
       - --loglevel=INFO
-      - --queues=ingest,transcribe,analyze,render
+      - --queues=ingest,analyze,render
       - --concurrency=2
+      - --hostname=worker@%h
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "celery -A app.workers.celery_app:celery_app inspect ping -d celery@$$HOSTNAME --timeout 5",
+          "celery -A app.workers.celery_app:celery_app inspect ping -d worker@$$HOSTNAME --timeout 5",
         ]
       interval: 20s
       timeout: 15s
       start_period: 20s
       retries: 5
-    depends_on:
+    depends_on: &worker-deps
       migrate:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
       storage-init:
         condition: service_completed_successfully
+
+  # Transcription holds a Whisper model in memory, so it gets its own single-slot worker.
+  worker-transcribe:
+    image: clipforge-api
+    <<: *api-env
+    command:
+      - celery
+      - -A
+      - app.workers.celery_app:celery_app
+      - worker
+      - --loglevel=INFO
+      - --queues=transcribe
+      - --concurrency=1
+      - --hostname=transcribe@%h
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.workers.celery_app:celery_app inspect ping -d transcribe@$$HOSTNAME --timeout 5",
+        ]
+      interval: 20s
+      timeout: 15s
+      start_period: 20s
+      retries: 5
+    volumes:
+      - whispermodels:/models
+    depends_on: *worker-deps
 
   web:
     build:
@@ -132,5 +160,6 @@ services:
 
 volumes:
   pgdata:
+  whispermodels:
   redisdata:
   miniodata:

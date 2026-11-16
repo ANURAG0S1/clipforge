@@ -142,6 +142,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Project Media
+         * @description Short-lived URL for the seekable H.264 proxy used by the in-browser player.
+         */
+        get: operations["get_project_media_projects__project_id__media_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/transcript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Transcript */
+        get: operations["get_transcript_projects__project_id__transcript_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/uploads/presign": {
         parameters: {
             query?: never;
@@ -256,6 +293,13 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** ProjectMediaOut */
+        ProjectMediaOut: {
+            /** Expires In S */
+            expires_in_s: number;
+            /** Proxy Url */
+            proxy_url: string;
+        };
         /** ProjectOut */
         ProjectOut: {
             /**
@@ -305,6 +349,47 @@ export interface components {
          * @enum {string}
          */
         SourceType: "upload" | "url";
+        /** TranscriptOut */
+        TranscriptOut: {
+            /** Duration S */
+            duration_s: number | null;
+            /** Language */
+            language: string;
+            /** Segments */
+            segments: components["schemas"]["TranscriptSegment"][];
+            /** Words */
+            words: components["schemas"]["TranscriptWord"][];
+        };
+        /** TranscriptSegment */
+        TranscriptSegment: {
+            /** End */
+            end: number;
+            /**
+             * First Word
+             * @description Index of the segment's first word in `words`
+             */
+            first_word: number;
+            /** Start */
+            start: number;
+            /** Text */
+            text: string;
+            /** Word Count */
+            word_count: number;
+        };
+        /** TranscriptWord */
+        TranscriptWord: {
+            /** Conf */
+            conf: number;
+            /** End */
+            end: number;
+            /** Start */
+            start: number;
+            /**
+             * W
+             * @description The word, including any leading space or punctuation
+             */
+            w: string;
+        };
         /** UploadSource */
         UploadSource: {
             /** Key */
@@ -659,6 +744,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_media_projects__project_id__media_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                clipforge_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectMediaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_transcript_projects__project_id__transcript_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                clipforge_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscriptOut"];
                 };
             };
             /** @description Validation Error */

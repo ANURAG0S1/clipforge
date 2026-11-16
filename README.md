@@ -5,8 +5,7 @@ Upload a video or paste a URL, and ClipForge transcribes it, finds the most clip
 moments with Claude, reframes them to 9:16 around the active speaker, and burns in
 animated captions.
 
-> **Status:** Phase 2 (auth, upload, ingest). Transcription, highlights and rendering land in
-> later phases.
+> **Status:** Phase 3 (transcription). Highlight detection and rendering land in later phases.
 
 ## Quick start
 
@@ -110,6 +109,24 @@ Media tests generate synthetic clips with ffmpeg, so ffmpeg must be on your `PAT
   address must be public. The media URLs yt-dlp selects are checked again before download.
   DNS rebinding between check and fetch isn't fully preventable at this layer, so run workers
   without access to internal services if that matters in your deployment.
+
+## Transcription and GPUs
+
+Transcription runs in its own worker (`worker-transcribe`, one task at a time) because it holds
+a Whisper model in memory. Models download from Hugging Face on first use into the
+`whispermodels` volume, so the first transcription is slower.
+
+- **CPU (default in Compose):** with `WHISPER_DEVICE=auto` and no GPU, the worker uses
+  `WHISPER_CPU_MODEL` (default `small`, int8). Expect it to be much slower than a GPU.
+- **NVIDIA GPU:** install the NVIDIA Container Toolkit, give `worker-transcribe` a GPU
+  (`deploy.resources.reservations.devices` with `capabilities: [gpu]`), and it switches to
+  `WHISPER_MODEL` (default `large-v3`, float16). The image needs CUDA 12 and cuDNN 9 runtime
+  libraries for this. Use an NVIDIA CUDA base image or install `nvidia-cublas-cu12` and
+  `nvidia-cudnn-cu12`.
+- **Long videos:** audio over 60 minutes is transcribed in 30-minute chunks that overlap by
+  5 seconds, which bounds memory. Each overlap is resolved at its midpoint, so no words are
+  duplicated or lost at the seams.
+- **Offline hosts:** pre-download a model and point `WHISPER_MODEL_DIR` at it.
 
 ## Notes
 

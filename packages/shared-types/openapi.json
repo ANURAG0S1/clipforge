@@ -277,6 +277,24 @@
         "title": "ProjectCreate",
         "type": "object"
       },
+      "ProjectMediaOut": {
+        "properties": {
+          "expires_in_s": {
+            "title": "Expires In S",
+            "type": "integer"
+          },
+          "proxy_url": {
+            "title": "Proxy Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proxy_url",
+          "expires_in_s"
+        ],
+        "title": "ProjectMediaOut",
+        "type": "object"
+      },
       "ProjectOut": {
         "properties": {
           "created_at": {
@@ -415,6 +433,118 @@
         ],
         "title": "SourceType",
         "type": "string"
+      },
+      "TranscriptOut": {
+        "properties": {
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptSegment"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptWord"
+            },
+            "title": "Words",
+            "type": "array"
+          }
+        },
+        "required": [
+          "language",
+          "duration_s",
+          "words",
+          "segments"
+        ],
+        "title": "TranscriptOut",
+        "type": "object"
+      },
+      "TranscriptSegment": {
+        "properties": {
+          "end": {
+            "minimum": 0.0,
+            "title": "End",
+            "type": "number"
+          },
+          "first_word": {
+            "description": "Index of the segment's first word in `words`",
+            "minimum": 0.0,
+            "title": "First Word",
+            "type": "integer"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "word_count": {
+            "minimum": 0.0,
+            "title": "Word Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "text",
+          "first_word",
+          "word_count"
+        ],
+        "title": "TranscriptSegment",
+        "type": "object"
+      },
+      "TranscriptWord": {
+        "properties": {
+          "conf": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Conf",
+            "type": "number"
+          },
+          "end": {
+            "minimum": 0.0,
+            "title": "End",
+            "type": "number"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "number"
+          },
+          "w": {
+            "description": "The word, including any leading space or punctuation",
+            "title": "W",
+            "type": "string"
+          }
+        },
+        "required": [
+          "w",
+          "start",
+          "end",
+          "conf"
+        ],
+        "title": "TranscriptWord",
+        "type": "object"
       },
       "UploadSource": {
         "properties": {
@@ -985,6 +1115,125 @@
           }
         },
         "summary": "List Project Jobs",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/{project_id}/media": {
+      "get": {
+        "description": "Short-lived URL for the seekable H.264 proxy used by the in-browser player.",
+        "operationId": "get_project_media_projects__project_id__media_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "clipforge_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Clipforge Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMediaOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Project Media",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/{project_id}/transcript": {
+      "get": {
+        "operationId": "get_transcript_projects__project_id__transcript_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "clipforge_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Clipforge Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Transcript",
         "tags": [
           "projects"
         ]

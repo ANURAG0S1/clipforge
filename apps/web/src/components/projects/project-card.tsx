@@ -2,6 +2,7 @@
 
 import type { ProjectOut } from "@clipforge/shared-types";
 import { AlertCircle, Link2, Loader2, Trash2, Upload } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { STATUS_LABEL, STATUS_VARIANT } from "@/components/projects/status";
@@ -41,7 +42,12 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <h2 id={headingId} className="truncate font-medium" title={project.title}>
-            {project.title}
+            <Link
+              href={`/projects/${project.id}`}
+              className="focus-visible:ring-ring rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2"
+            >
+              {project.title}
+            </Link>
           </h2>
           <p className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <span className="inline-flex items-center gap-1">
