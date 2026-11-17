@@ -50,7 +50,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 from app.core.config import get_settings  # noqa: E402
-from app.db.models import Base  # noqa: E402
+from app.db.models import Base, JobType  # noqa: E402
 from app.db.session import get_db  # noqa: E402
 from app.main import create_app  # noqa: E402
 from app.services import pipeline  # noqa: E402
@@ -128,6 +128,19 @@ def enqueued(monkeypatch: pytest.MonkeyPatch) -> list[tuple[uuid.UUID, uuid.UUID
 
     monkeypatch.setattr(pipeline, "enqueue_ingest", _fake_enqueue)
     monkeypatch.setattr(pipeline, "revoke", lambda _ids: None)
+    return calls
+
+
+@pytest.fixture(autouse=True)
+def dispatched(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, uuid.UUID, uuid.UUID]]:
+    """Captures every stage task the code under test tries to send to Celery."""
+    calls: list[tuple[str, uuid.UUID, uuid.UUID]] = []
+
+    def _fake_enqueue(job_type: JobType, project_id: uuid.UUID, job_id: uuid.UUID) -> str:
+        calls.append((job_type.value, project_id, job_id))
+        return str(job_id)
+
+    monkeypatch.setattr(pipeline, "enqueue", _fake_enqueue)
     return calls
 
 

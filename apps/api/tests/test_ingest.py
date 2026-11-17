@@ -58,7 +58,10 @@ async def _load(
 
 
 async def test_upload_ingest_reaches_transcribing_with_metadata(
-    sessions: async_sessionmaker[AsyncSession], storage: FakeStorage, tmp_path: Path
+    sessions: async_sessionmaker[AsyncSession],
+    storage: FakeStorage,
+    tmp_path: Path,
+    dispatched: list[tuple[str, uuid.UUID, uuid.UUID]],
 ) -> None:
     src = make_test_video(tmp_path / "v.mp4", seconds=3, width=640, height=360)
     key = f"uploads/{uuid.uuid4()}/{uuid.uuid4()}/source.mp4"
@@ -79,6 +82,16 @@ async def test_upload_ingest_reaches_transcribing_with_metadata(
     assert job.started_at is not None
     assert job.finished_at is not None
     assert f"projects/{project_id}/proxy.mp4" in storage.all_keys()
+
+    # Transcription is queued as its own job and dispatched to the transcribe queue.
+    assert len(dispatched) == 1
+    stage, dispatched_project, transcribe_job_id = dispatched[0]
+    assert (stage, dispatched_project) == ("transcribe", project_id)
+    async with sessions() as db:
+        transcribe_job = await db.get(Job, transcribe_job_id)
+        assert transcribe_job is not None
+        assert transcribe_job.type == JobType.TRANSCRIBE
+        assert transcribe_job.status == JobStatus.QUEUED
 
 
 async def test_url_ingest_stores_source_and_proxy(
@@ -225,6 +238,44 @@ async def test_finished_or_deleted_jobs_are_skipped(
     assert again.status == ProjectStatus.TRANSCRIBING
     assert again.updated_at == first.updated_at
     assert job.status == JobStatus.SUCCEEDED
+
+
+async def test_redelivered_ingest_resends_a_stranded_transcribe_job(
+    sessions: async_sessionmaker[AsyncSession],
+    storage: FakeStorage,
+    tmp_path: Path,
+    dispatched: list[tuple[str, uuid.UUID, uuid.UUID]],
+) -> None:
+    key = "uploads/u/k/source.mp4"
+    storage.put_file(key, make_test_video(tmp_path / "v.mp4", seconds=1))
+    project_id, job_id = await _seed(sessions, source_type=SourceType.UPLOAD, source_key=key)
+    await ingest_mod.ingest_project(project_id, job_id, attempt=0)
+    assert len(dispatched) == 1
+    # Simulate a crash between commit and send: the message is redelivered.
+    await ingest_mod.ingest_project(project_id, job_id, attempt=0)
+    assert len(dispatched) == 2
+    assert dispatched[0] == dispatched[1]
+
+
+async def test_dispatch_failure_marks_project_failed(
+    sessions: async_sessionmaker[AsyncSession],
+    storage: FakeStorage,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services import pipeline
+
+    def _broken(*_: object) -> str:
+        raise ConnectionError("broker down")
+
+    monkeypatch.setattr(pipeline, "enqueue", _broken)
+    key = "uploads/u/k/source.mp4"
+    storage.put_file(key, make_test_video(tmp_path / "v.mp4", seconds=1))
+    project_id, job_id = await _seed(sessions, source_type=SourceType.UPLOAD, source_key=key)
+    await ingest_mod.ingest_project(project_id, job_id, attempt=0)
+    project, _ = await _load(sessions, project_id, job_id)
+    assert project.status == ProjectStatus.FAILED
+    assert project.error == "Could not start the transcribe step. Please try again."
 
 
 @pytest.mark.parametrize("fail", [False, True])

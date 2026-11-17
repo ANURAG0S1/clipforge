@@ -7,10 +7,19 @@ from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, RateLimiterDep, SessionDep, SettingsDep, StorageDep, not_found
-from app.api.routes.uploads import upload_prefix
-from app.db.models import Job, JobStatus, JobType, Project, ProjectStatus, SourceType
+from app.db.models import (
+    Job,
+    JobStatus,
+    JobType,
+    Project,
+    ProjectStatus,
+    SourceType,
+    Transcript,
+)
 from app.schemas.projects import JobOut, ProjectCreate, ProjectOut, UploadSource
+from app.schemas.transcript import ProjectMediaOut, TranscriptOut
 from app.services import pipeline
+from app.services.keys import project_prefix, proxy_key, upload_prefix
 from app.services.storage import StorageError
 from app.services.url_guard import UnsafeUrlError, validate_public_url
 
@@ -18,10 +27,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 _ACTIVE_JOB_STATUSES = (JobStatus.QUEUED, JobStatus.RUNNING)
-
-
-def project_prefix(project_id: uuid.UUID) -> str:
-    return f"projects/{project_id}/"
+MEDIA_URL_TTL_S = 6 * 3600
 
 
 async def get_owned_project(db: SessionDep, user_id: uuid.UUID, project_id: uuid.UUID) -> Project:
@@ -160,6 +166,34 @@ async def list_project_jobs(project_id: uuid.UUID, user: CurrentUser, db: Sessio
             select(Job).where(Job.project_id == project.id).order_by(Job.created_at.desc())
         )
     )
+
+
+@router.get("/{project_id}/transcript", response_model=TranscriptOut)
+async def get_transcript(project_id: uuid.UUID, user: CurrentUser, db: SessionDep) -> TranscriptOut:
+    project = await get_owned_project(db, user.id, project_id)
+    transcript = await db.scalar(select(Transcript).where(Transcript.project_id == project.id))
+    if transcript is None:
+        raise not_found("Transcript")
+    return TranscriptOut.model_validate(
+        {
+            "language": transcript.language,
+            "duration_s": project.duration_s,
+            "words": transcript.words,
+            "segments": transcript.segments,
+        }
+    )
+
+
+@router.get("/{project_id}/media", response_model=ProjectMediaOut)
+async def get_project_media(
+    project_id: uuid.UUID, user: CurrentUser, db: SessionDep, storage: StorageDep
+) -> ProjectMediaOut:
+    """Short-lived URL for the seekable H.264 proxy used by the in-browser player."""
+    project = await get_owned_project(db, user.id, project_id)
+    if project.duration_s is None:
+        raise not_found("Video")
+    url = storage.presign_get(proxy_key(project.id), ttl_s=MEDIA_URL_TTL_S)
+    return ProjectMediaOut(proxy_url=url, expires_in_s=MEDIA_URL_TTL_S)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

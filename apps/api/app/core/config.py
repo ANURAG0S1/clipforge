@@ -41,6 +41,14 @@ class Settings(BaseSettings):
 
     whisper_model: str = "large-v3"
     whisper_device: Literal["cuda", "cpu", "auto"] = "auto"
+    # Used instead of whisper_model when transcription runs on CPU (large-v3 is impractical there).
+    whisper_cpu_model: str = "small"
+    whisper_model_dir: str | None = None
+    whisper_beam_size: int = Field(default=5, ge=1, le=10)
+    # Audio longer than this is transcribed in overlapping chunks to bound memory.
+    transcribe_max_single_pass_s: int = Field(default=3600, gt=60)
+    transcribe_chunk_s: int = Field(default=1800, gt=60)
+    transcribe_chunk_overlap_s: int = Field(default=5, ge=0, le=30)
 
     max_upload_gb: float = Field(default=4, gt=0)
     max_duration_min: int = Field(default=180, gt=0)

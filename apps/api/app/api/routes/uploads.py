@@ -6,15 +6,12 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import CurrentUser, SettingsDep, StorageDep
 from app.schemas.uploads import PresignRequest, PresignResponse
+from app.services.keys import upload_prefix
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
 PRESIGN_TTL_S = 3600
 _SAFE_EXT = re.compile(r"^\.[a-z0-9]{1,8}$")
-
-
-def upload_prefix(user_id: uuid.UUID) -> str:
-    return f"uploads/{user_id}/"
 
 
 def build_upload_key(user_id: uuid.UUID, filename: str) -> str:

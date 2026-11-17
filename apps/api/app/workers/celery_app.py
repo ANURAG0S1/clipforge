@@ -20,12 +20,22 @@ def create_celery() -> Celery:
         "clipforge",
         broker=broker,
         backend=broker,
-        include=["app.workers.tasks.system", "app.workers.tasks.ingest"],
+        include=[
+            "app.workers.tasks.system",
+            "app.workers.tasks.ingest",
+            "app.workers.tasks.transcribe",
+        ],
     )
     app.conf.update(
         task_queues=[Queue(name) for name in QUEUES],
         task_default_queue="ingest",
-        task_routes={"system.*": {"queue": "ingest"}, "pipeline.ingest": {"queue": "ingest"}},
+        task_routes={
+            "system.*": {"queue": "ingest"},
+            "pipeline.ingest": {"queue": "ingest"},
+            "pipeline.transcribe": {"queue": "transcribe"},
+            "pipeline.analyze": {"queue": "analyze"},
+            "pipeline.render": {"queue": "render"},
+        },
         task_acks_late=True,
         task_reject_on_worker_lost=True,
         worker_prefetch_multiplier=1,

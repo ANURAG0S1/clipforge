@@ -16,3 +16,7 @@ export type ProjectOut = Schema<"ProjectOut">;
 export type ProjectStatus = ProjectOut["status"];
 export type JobOut = Schema<"JobOut">;
 export type HTTPValidationError = Schema<"HTTPValidationError">;
+export type TranscriptOut = Schema<"TranscriptOut">;
+export type TranscriptWord = Schema<"TranscriptWord">;
+export type TranscriptSegment = Schema<"TranscriptSegment">;
+export type ProjectMediaOut = Schema<"ProjectMediaOut">;
